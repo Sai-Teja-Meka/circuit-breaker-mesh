@@ -1,0 +1,718 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Circuit Breaker Mesh",
+    "description": "Multi-Agent System with Cost Tracking & 3D Observability",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "summary": "Get Agents",
+        "description": "Returns the current state of all agents.\n(Mock data for Contract Validation)",
+        "operationId": "get_agents_api_agents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentState"
+                  },
+                  "type": "array",
+                  "title": "Response Get Agents Api Agents Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cost-events": {
+      "post": {
+        "summary": "Record Cost Event",
+        "description": "Ingests usage data, calculates financial cost using Groq pricing,\nrecords the event in history, and updates the agent's total balance.",
+        "operationId": "record_cost_event_api_cost_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCostEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostEvent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}/cost": {
+      "get": {
+        "summary": "Get Agent Cost",
+        "description": "Returns the total cumulative cost for a specific agent.",
+        "operationId": "get_agent_cost_api_agents__agent_id__cost_get",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}/circuit": {
+      "get": {
+        "summary": "Get Agent Circuit State",
+        "description": "Returns the current circuit breaker state (Open/Closed/Half-Open) for an agent.\nInitializes default state if none exists.",
+        "operationId": "get_agent_circuit_state_api_agents__agent_id__circuit_get",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreakerState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}/circuit/check-budget": {
+      "post": {
+        "summary": "Check Agent Budget",
+        "description": "Manually triggers a budget check against the CostTracker.\nIf the budget is exceeded, this will trip the circuit to OPEN.",
+        "operationId": "check_agent_budget_api_agents__agent_id__circuit_check_budget_post",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitBreakerState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}/chat": {
+      "post": {
+        "summary": "Chat Agent",
+        "description": "Sends a chat message to the agent (requires full message history).\nAutomatically handles:\n1. Circuit Breaker check (switches to Ollama if Open)\n2. Cost Tracking (records usage if using Groq)\n3. Error handling (updates failure count)",
+        "operationId": "chat_agent_api_agents__agent_id__chat_post",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "summary": "Simple Chat",
+        "description": "Simple conversational chat endpoint.\nNo orchestration, just direct LLM interaction.\nFaster and cheaper for basic queries.",
+        "operationId": "simple_chat_api_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimpleChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/query": {
+      "post": {
+        "summary": "Execute Complex Query",
+        "description": "Executes a multi-agent workflow:\n1. Coordinator analyzes query\n2. Smart routing to Researcher/Coder (or neither)\n3. Final synthesis (if needed)\n\nSet force_all_agents=true to always invoke all agents.",
+        "operationId": "execute_complex_query_api_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentMetrics": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "tokens_consumed": {
+            "type": "integer",
+            "title": "Tokens Consumed",
+            "default": 0
+          },
+          "cost_usd": {
+            "type": "string",
+            "title": "Cost Usd",
+            "default": "0.00"
+          },
+          "api_calls_total": {
+            "type": "integer",
+            "title": "Api Calls Total",
+            "default": 0
+          },
+          "api_calls_failed": {
+            "type": "integer",
+            "title": "Api Calls Failed",
+            "default": 0
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms",
+            "default": 0.0
+          },
+          "latency_p95_ms": {
+            "type": "number",
+            "title": "Latency P95 Ms",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id"
+        ],
+        "title": "AgentMetrics"
+      },
+      "AgentState": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "agent_type": {
+            "$ref": "#/components/schemas/AgentType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentStatus",
+            "default": "idle"
+          },
+          "current_task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Task"
+          },
+          "progress": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Progress",
+            "default": 0.0
+          },
+          "position_3d": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Position 3D",
+            "default": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/AgentMetrics"
+          },
+          "circuit_breaker": {
+            "$ref": "#/components/schemas/CircuitBreakerState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id",
+          "agent_type",
+          "metrics",
+          "circuit_breaker"
+        ],
+        "title": "AgentState"
+      },
+      "AgentStatus": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "thinking",
+          "executing_tool",
+          "blocked",
+          "completed",
+          "failed"
+        ],
+        "title": "AgentStatus"
+      },
+      "AgentType": {
+        "type": "string",
+        "enum": [
+          "coordinator",
+          "research",
+          "code"
+        ],
+        "title": "AgentType"
+      },
+      "ChatRequest": {
+        "properties": {
+          "messages": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "ChatRequest",
+        "description": "Input payload for sending a chat message to an agent (Structured messages list)."
+      },
+      "CircuitBreakerState": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CircuitStatus",
+            "default": "closed"
+          },
+          "failure_count": {
+            "type": "integer",
+            "title": "Failure Count",
+            "default": 0
+          },
+          "budget_limit_usd": {
+            "type": "string",
+            "title": "Budget Limit Usd",
+            "default": "5.00"
+          },
+          "budget_consumed_usd": {
+            "type": "string",
+            "title": "Budget Consumed Usd",
+            "default": "0.00"
+          },
+          "fallback_model": {
+            "type": "string",
+            "title": "Fallback Model",
+            "default": "ollama-mistral"
+          },
+          "last_failure_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Failure Time"
+          },
+          "reset_timeout_seconds": {
+            "type": "integer",
+            "title": "Reset Timeout Seconds",
+            "default": 60
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id"
+        ],
+        "title": "CircuitBreakerState"
+      },
+      "CircuitStatus": {
+        "type": "string",
+        "enum": [
+          "closed",
+          "open",
+          "half_open"
+        ],
+        "title": "CircuitStatus"
+      },
+      "CostEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "model_used": {
+            "type": "string",
+            "title": "Model Used"
+          },
+          "tokens_prompt": {
+            "type": "integer",
+            "title": "Tokens Prompt"
+          },
+          "tokens_completion": {
+            "type": "integer",
+            "title": "Tokens Completion"
+          },
+          "cost_usd": {
+            "type": "string",
+            "title": "Cost Usd"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id",
+          "model_used",
+          "tokens_prompt",
+          "tokens_completion",
+          "cost_usd"
+        ],
+        "title": "CostEvent"
+      },
+      "CreateCostEventRequest": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "tokens_prompt": {
+            "type": "integer",
+            "title": "Tokens Prompt"
+          },
+          "tokens_completion": {
+            "type": "integer",
+            "title": "Tokens Completion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id",
+          "model",
+          "tokens_prompt",
+          "tokens_completion"
+        ],
+        "title": "CreateCostEventRequest",
+        "description": "Input payload for recording a cost event.\nThe backend calculates the actual cost_usd based on the model."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "QueryRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id",
+            "default": "user_agent"
+          },
+          "force_all_agents": {
+            "type": "boolean",
+            "title": "Force All Agents",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "QueryRequest",
+        "description": "Input payload for a complex multi-agent query."
+      },
+      "SimpleChatRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id",
+            "default": "default_agent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SimpleChatRequest",
+        "description": "Simple chat input - just a query string."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
